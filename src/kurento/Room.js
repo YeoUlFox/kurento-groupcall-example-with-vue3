@@ -1,19 +1,13 @@
-import { sendMessage } from "@/kurento/WebSocketHandler"
-import { Participant } from '@/kurento/Participant'
 import { WebRtcPeer } from "kurento-utils";
 
+export class Room {
+	ws = new WebSocket('ws://' + 'localhost:8334' +'/groupcall');
+	participants = {};
 
-export function Room() {
-	var ws = new WebSocket('wss://' + location.host + '/groupcall');
-	var participants = {};
+	userName;
+	roomName;
 
-	var userName;
-	var roomName;
-
-	// window.onbeforeunload = function() {
-	// 	ws.close();
-	// };
-	this.release = function() {
+	release = function() {
 		ws.close();
 	}
 
@@ -54,7 +48,6 @@ export function Room() {
 		// document.getElementById('room-header').innerText = 'ROOM ' + room;
 		// document.getElementById('join').style.display = 'none';
 		// document.getElementById('room').style.display = 'block';
-
 		userName = user;
 		roomName = room;
 	
@@ -63,10 +56,12 @@ export function Room() {
 			name : userName,
 			room : roomName,
 		}
+
+		console.log("register :" + message);
 		sendMessage(message);
 	}
 
-	// SDP Answer에 대한 처리
+	//SDP Answer에 대한 처리
 	this.callResponse = function(message) {
 		if (message.response != 'accepted') {
 			console.info('Call not accepted by peer. Closing call');
@@ -90,7 +85,6 @@ export function Room() {
 
 		ws.close();
 	}
-
 
 	function onExistingParticipants(msg) {
 		var constraints = {
@@ -153,11 +147,66 @@ export function Room() {
 		}
 	
 		participant.rtcPeer = new WebRtcPeer.WebRtcPeerRecvonly(options,
-				function (error) {
-					if(error) {
-						return console.error(error);
-					}
-					this.generateOffer (participant.offerToReceiveVideo.bind(participant));
+			function (error) {
+				if(error) {
+					return console.error(error);
+				}
+				this.generateOffer (participant.offerToReceiveVideo.bind(participant));
 		});
+
+		console.log("receiveVideo " + participants);
+	}
+
+	function sendMessage(message) {
+		var jsonMessage = JSON.stringify(message);
+		console.log('Sending message: ' + jsonMessage);
+		
+		ws.send(jsonMessage);
+	}
+
+	function Participant(name) {
+		this.name = name;
+	
+		// var rtcPeer
+		Object.defineProperty(this, 'rtcPeer', { writable: true });
+	
+		// create video
+		var video = document.createElement('video');
+		video.id = 'video-' + name;
+		video.autoplay = true;
+		video.controls = false;
+	
+		var rtcPeer;
+		console.log(rtcPeer);
+
+		this.getVideoElement = function () {
+			return video;
+		};
+	
+		this.offerToReceiveVideo = function(error, offerSdp){
+			if (error) return console.error ("sdp offer error")
+			console.log('Invoking SDP offer callback function');
+			var msg =  { id : "receiveVideoFrom",
+					sender : name,
+					sdpOffer : offerSdp
+				};
+			sendMessage(msg);
+		}
+	
+		this.onIceCandidate = function (candidate) {
+				console.log("Local candidate" + JSON.stringify(candidate));
+	
+				var message = {
+					id:	'onIceCandidate',
+					candidate: candidate,
+					name: name
+				};
+				sendMessage(message);
+		}
+	
+		this.dispose = function() {
+			console.log('Disposing participant ' + this.name);
+			this.rtcPeer.dispose();
+		};
 	}
 }
