@@ -1,8 +1,6 @@
 <template>
   <img id="logo" alt="logo" src="./assets/logo.png">
 
-  <button @click="test">test</button>
-
   <p v-if="!isConnected"> Web Socket Not Connected </p>
   <p> total members : {{ Object.keys(participants).length }} </p>
 
@@ -49,18 +47,12 @@ export default {
     var username = ref();
     var roomname = ref();
 
-    function test() {
-      console.log(store.state.Room.participants);
-    }
-
     function register() {
       store.dispatch("register", { username: username.value, roomname: roomname.value });
-      // TODO : update UI
     }
 
     function leaveRoom() {
       store.dispatch("leaveRoom");
-      // TODO : update UI
     }
 
     function unLoadEvent(event) {
@@ -93,20 +85,12 @@ export default {
           return;
         }
           
-
         let video = store.state.Room.participants[key].getVideoElement();
         members.value[key].appendChild(video);
       })
     })
 
-    // watch(() => store.state.Room.participants, function(cur, old) {
-    //   // find newly added keys
-    //   let cur_key = Object.keys(cur);
-    //   let old_key = Object.keys(old);
-    //   console.log("watched " + cur_key + " -> " + old_key);
-    // })
-
-    return { username, roomname, register, leaveRoom, test,
+    return { username, roomname, register, leaveRoom,
       members,
       participants: computed(() => store.state.Room.participants),
       isConnected: computed(() => store.state.Room.isSocketConnected)}
