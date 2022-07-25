@@ -1,11 +1,14 @@
 <template>
   <img id="logo" alt="logo" src="./assets/logo.png">
 
-  <!-- <button @click="test">test</button> -->
+  <button @click="test">test</button>
 
-  <div id="join1" v-if="!isInRoom">
+  <p v-if="!isConnected"> Web Socket Not Connected </p>
+  <p> total members : {{ Object.keys(participants).length }} </p>
+
+  <div id="join1" v-if="isConnected">
     <h1>Join a Room</h1>
-    <form @submit.prevent="enterRoom()" accept-charset="UTF-8">
+    <form @submit.prevent="register()" accept-charset="UTF-8">
       <p>
         <input type="text" name="name" v-model="username" id="name"
           placeholder="Username" required>
@@ -20,11 +23,11 @@
     </form>
   </div>
 
-  <div id="room" ref="div_room" v-if="isInRoom">
-    <h2 id="room-header"> {{ roomname }} </h2>
+  <div id="room" ref="div_room" v-if="Object.keys(participants).length != 0">
+    <h2 id="room-header"> Room : {{ roomname }} </h2>
     <div id="participants" ref="div_participants">
-      <div v-for="[name, ] in room.participants" :key="name" :id="'participant' + name">
-        <p> {{name}}</p>
+      <div v-for="(value, name) in participants" :key="name" :ref="(el) => { members[name] = el }">
+        <p>{{name}}</p>
       </div>
     </div>
     <input type="button" id="button-leave" @mouseup="leaveRoom()"
@@ -34,49 +37,79 @@
 </template>
 
 <script>
-import { ref, watch, onBeforeUnmount, onUpdated } from 'vue'
-import { Room } from '@/kurento/Room'
+import { ref, onMounted, onBeforeUnmount, computed, onUpdated} from 'vue'
+import { useStore } from 'vuex';
 
 export default {
   name: 'Kurento_Demo',
 
   setup() {
-    var room = ref(new Room());
-    var isInRoom = ref(false);
+    var store = useStore();
+
     var username = ref();
     var roomname = ref();
 
-    
+    function test() {
+      console.log(store.state.Room.participants);
+    }
 
-    function enterRoom() {
-      room.value.register(username.value, roomname.value); 
-      isInRoom.value = true;
-
-      console.log("participants : " + room.value.participants);
+    function register() {
+      store.dispatch("register", { username: username.value, roomname: roomname.value });
+      // TODO : update UI
     }
 
     function leaveRoom() {
-      room.value.leaveRoom();
-      isInRoom.value = false;
-
-
+      store.dispatch("leaveRoom");
+      // TODO : update UI
     }
 
-    onUpdated(()=> {
+    function unLoadEvent(event) {
+      store.commit("closeSocket");
+      event.preventDefault();
+      event.returnValue = "";
+    }
 
+    onMounted(() => {
+      // add event for leaving this page
+      window.addEventListener('beforeunload', unLoadEvent);
+
+      // start socket connection
+      store.commit("initSocket");
     })
 
-    var div_participants = ref(null);
-    watch(room.value, (cur, old) => {
-      console.log("watched!");
-      console.log(cur);
-      console.log(old);
-    });
-  
-    // for page shut down
-    onBeforeUnmount(() => { if(room.value != null) room.value.release(); })
+    onBeforeUnmount(() => {
+      // remove event
+      window.removeEventListener('beforeunload', unLoadEvent);
+    })
 
-    return { username, roomname, isInRoom, enterRoom, leaveRoom, div_participants, room}
+    // add video on updated participants
+    var members = ref({});
+    onUpdated(() => {
+      Object.keys(members.value).forEach((key) => {
+        console.log(key + " : " + members.value[key]);
+
+        if(members.value[key].children.length > 1) {
+          console.log("dd");
+          return;
+        }
+          
+
+        let video = store.state.Room.participants[key].getVideoElement();
+        members.value[key].appendChild(video);
+      })
+    })
+
+    // watch(() => store.state.Room.participants, function(cur, old) {
+    //   // find newly added keys
+    //   let cur_key = Object.keys(cur);
+    //   let old_key = Object.keys(old);
+    //   console.log("watched " + cur_key + " -> " + old_key);
+    // })
+
+    return { username, roomname, register, leaveRoom, test,
+      members,
+      participants: computed(() => store.state.Room.participants),
+      isConnected: computed(() => store.state.Room.isSocketConnected)}
   },
 }
 </script>
